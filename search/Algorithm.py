@@ -11,7 +11,7 @@ class Algorithm:
         self.lambda_origin = lambda_origin
         self.switch_names = ['switch_all', 'switch_sep_3', 'switch_sep_5', 'switch_dil_3', 'switch_dil_5',
                              'switch_max_pool', 'switch_avg_pool', 'switch_ident']
-        self.norm_op_names = ['in0_0', 'in0_1', 'in0_2', 'in1_0', 'in1_1', 'in1_2', 'in1_3', 'sel_0_3']
+        self.norm_op_names = ['in0_0', 'in0_1', 'in0_2', 'in1_0', 'in1_1', 'in1_2', 'in1_3', 'sel_0_3']  # ??
         self.gamma_norm_cells = {}
         self.omega_norm_cells = {}
         self.cov_norm_cells = {}

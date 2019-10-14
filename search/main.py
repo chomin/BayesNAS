@@ -15,6 +15,7 @@ parser.add_argument("--val_batch_size", type=int, default=18, help="validation b
 parser.add_argument("--lr", type=float, default=0.1, help="learning rate")
 parser.add_argument("--weight_decay", type=float, default=1e-4, help="weight_decay")
 parser.add_argument("--momentum", type=float, default=0.9, help="momentum")
+parser.add_argument("--t_max", type=int, default=1, help="max iteration num(max epoch num)")
 args = parser.parse_args()
 
 if __name__ == '__main__':  # multi-processing protection
@@ -43,21 +44,45 @@ if __name__ == '__main__':  # multi-processing protection
     acc_history = []
     loss_history = []
 
-    # normal training&evaluation
-    for epoch in range(epochs):
-        # training
-        start = time()
-        y = lib.train(epoch=epoch, train_loader=train_loader_normal, percent_used=percent_used, algorithm=algorithm,
-                      optimizer=optimizer)
-        end = time()
-        print('Training elapse: {0}s'.format(end - start))
+    for _ in range(args.t_max):
+        # normal training&evaluation
+        for epoch in range(epochs):
+            # training
+            start = time()
+            y = lib.train(epoch=epoch, train_loader=train_loader_normal, percent_used=percent_used, algorithm=algorithm,
+                          optimizer=optimizer)  # 5000のデータを使って訓練(ネットワーク重みとアーキテクチャ重みは同時に更新されている？)
+            end = time()
+            print('Training elapse: {0}s'.format(end - start))
+            # validation
+            start = time()
+            acc, val_loss = lib.validate(val_loader=val_loader, algorithm=algorithm)
+            acc_history.append(acc)
+            loss_history.append(val_loss)
+            end = time()
+            print('Validation elapse: {0}s'.format(end - start))
+            # save the best model
+            if acc > best_acc:
+                print('Best model saved.')
+                best_acc = acc
+                state = {'acc': acc, 'state_dict': algorithm.model.state_dict()}
+                torch.save(state, folder + 'best_saved_model.pt')
+
+            with open(folder + 'acc_history.pt', 'wb') as f:
+                pkl.dump(acc_history, f)
+            with open(folder + 'loss_history.pt', 'wb') as f:
+                pkl.dump(loss_history, f)
+        # switch training, algorithm update and evaluation. 45000のデータを使って訓練
+        optimizer_no_weight_decay = torch.optim.SGD(params=switch_params, lr=lr, momentum=args.momentum, weight_decay=0)
+        lib.train_switch(train_loader_switch, algorithm, optimizer, optimizer_no_weight_decay, folder)
         # validation
         start = time()
-        acc, val_loss = lib.validate(val_loader=val_loader, algorithm=algorithm)
+        acc, val_loss = lib.validate(val_loader=val_loader,
+                                     algorithm=algorithm)  # we change here to use validation to calculate hessian
         acc_history.append(acc)
         loss_history.append(val_loss)
         end = time()
         print('Validation elapse: {0}s'.format(end - start))
+
         # save the best model
         if acc > best_acc:
             print('Best model saved.')
@@ -69,26 +94,3 @@ if __name__ == '__main__':  # multi-processing protection
             pkl.dump(acc_history, f)
         with open(folder + 'loss_history.pt', 'wb') as f:
             pkl.dump(loss_history, f)
-    # switch training, algorithm update and evaluation
-    optimizer_no_weight_decay = torch.optim.SGD(params=switch_params, lr=lr, momentum=args.momentum, weight_decay=0)
-    lib.train_switch(train_loader_switch, algorithm, optimizer, optimizer_no_weight_decay, folder)
-    # validation
-    start = time()
-    acc, val_loss = lib.validate(val_loader=val_loader,
-                                 algorithm=algorithm)  # we change here to use validation to calculate hessian
-    acc_history.append(acc)
-    loss_history.append(val_loss)
-    end = time()
-    print('Validation elapse: {0}s'.format(end - start))
-
-    # save the best model
-    if acc > best_acc:
-        print('Best model saved.')
-        best_acc = acc
-        state = {'acc': acc, 'state_dict': algorithm.model.state_dict()}
-        torch.save(state, folder + 'best_saved_model.pt')
-
-    with open(folder + 'acc_history.pt', 'wb') as f:
-        pkl.dump(acc_history, f)
-    with open(folder + 'loss_history.pt', 'wb') as f:
-        pkl.dump(loss_history, f)

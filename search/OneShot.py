@@ -379,7 +379,7 @@ class NetWork(nn.Module):
         x_prev_prev = self.conv(x)
         x_prev = x_prev_prev
 
-        x, x_ = self.reduct_0(x_prev), self.reduct_1(x_prev_prev)
+        x, x_ = self.reduct_0(x_prev), self.reduct_1(x_prev_prev)  # cell入力前の前処理？
         x_prev = self.norm_cell_0(x, x_)
 
         x, x_ = self.reduct_2(x_prev), self.reduct_3(x_prev_prev)
