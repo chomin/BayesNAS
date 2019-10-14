@@ -10,7 +10,7 @@ Besides convolutional neural networks, we also provide theoretical analysis abou
 ## Search
 To run the searching algorithm, please go to [search](./search) and run *main.py* with
 ```bash
-python main.py --lambda_child your_lambda_child --lambda_origin your_lambda_origin
+python main.py --lambda_child 0.01 --lambda_origin 0.01 --t_max 3
 ```
 A folder is expected to appear in the same directory containing all parameters of our algorithm wrt. to the normal cell and reduct cell.  
 
