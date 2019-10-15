@@ -50,7 +50,7 @@ if __name__ == '__main__':  # multi-processing protection
             # training
             start = time()
             y = lib.train(epoch=epoch, train_loader=train_loader_normal, percent_used=percent_used, algorithm=algorithm,
-                          optimizer=optimizer)  # 5000のデータを使って訓練(ネットワーク重みとアーキテクチャ重みは同時に更新されている？)
+                          optimizer=optimizer)  # 5000のデータを使ってWを訓練(ネットワーク重みとアーキテクチャ重みは同時に更新されている？)
             end = time()
             print('Training elapse: {0}s'.format(end - start))
             # validation
@@ -71,7 +71,7 @@ if __name__ == '__main__':  # multi-processing protection
                 pkl.dump(acc_history, f)
             with open(folder + 'loss_history.pt', 'wb') as f:
                 pkl.dump(loss_history, f)
-        # switch training, algorithm update and evaluation. 45000のデータを使って訓練
+        # switch training, algorithm update and evaluation. 45000のデータを使ってWとsを訓練し、その後update（45000でのループは表示時間には含まれない）
         optimizer_no_weight_decay = torch.optim.SGD(params=switch_params, lr=lr, momentum=args.momentum, weight_decay=0)
         lib.train_switch(train_loader_switch, algorithm, optimizer, optimizer_no_weight_decay, folder)
         # validation

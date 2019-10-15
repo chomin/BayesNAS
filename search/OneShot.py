@@ -5,7 +5,7 @@ import torch.nn.functional as F
 DEVICE = torch.device('cuda')
 
 
-class Selection(nn.Module):
+class Selection(nn.Module):  # switchに関する演算を行う。
     def __init__(self, in_channels, reduction, save_device=torch.device('cpu')):
         super(Selection, self).__init__()
         self.save_device = save_device

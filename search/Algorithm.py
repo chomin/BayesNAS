@@ -324,7 +324,7 @@ class Algorithm:
     def update(self, target):
         with torch.no_grad():
             hessian_norm_cells, hessian_reduct_cells = self.compute_hessian(target)
-            hessian_norm_cells = self.convert(hessian_norm_cells, cell_type='norm')
+            hessian_norm_cells = self.convert(hessian_norm_cells, cell_type='norm')  # convertとは？
             hessian_reduct_cells = self.convert(hessian_reduct_cells, cell_type='reduct')
             gamma_norm_cells = self.convert(self.gamma_norm_cells, cell_type='norm')
             gamma_reduct_cells = self.convert(self.gamma_reduct_cells, cell_type='reduct')
@@ -438,7 +438,7 @@ class Algorithm:
 
         return loss, loss_prediction
 
-    def convert(self, obj, cell_type):
+    def convert(self, obj, cell_type):  # ?
         obj_alt = {}
         if cell_type == 'norm':
             num_cells = 6
