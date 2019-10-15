@@ -1,9 +1,39 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from cell import *
+from CNN.cell import *
 
 DEVICE = torch.device('cuda')
+
+
+class CReduct(nn.Module):
+    def __init__(self, in_channels, out_channels, size_reduct=False, save_device=torch.device('cpu')):
+        super(CReduct, self).__init__()
+        self.save_device = save_device
+
+        self.size_reduct = size_reduct
+        if size_reduct:
+            self.size_reduct = nn.Conv2d(in_channels, in_channels, 1, stride=2, bias=False)
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.conv = nn.Conv2d(in_channels, out_channels, 1, bias=False)
+
+        self.data = None
+
+    def forward(self, x):
+        x.retain_grad()
+        self.data = {'input': x}
+        if self.size_reduct:
+            x = self.size_reduct(x)
+            self.data['reducted'] = x.detach().to(self.save_device)
+        x = self.bn(x)
+        self.data['bn'] = x.detach().to(self.save_device)
+        x = F.relu(x)
+        x.retain_grad()
+        self.data['relu'] = x
+        x = self.conv(x)
+        self.data['conv'] = x.detach().to(self.save_device)
+
+        return x
 
 
 class NetWork(nn.Module):
@@ -75,24 +105,24 @@ class NetWork(nn.Module):
     def no_drop(self):
         for idx in range(18):
             norm_cell = getattr(self, 'norm_cell_' + str(idx))
-            norm_cell.training = False
+            norm_training = False
         for idx in range(2):
             reduct_cell = getattr(self, 'reduct_cell_' + str(idx))
-            reduct_cell.training = False
+            reduct_training = False
 
     def drop(self):
         for idx in range(18):
             norm_cell = getattr(self, 'norm_cell_' + str(idx))
-            norm_cell.training = True
+            norm_training = True
         for idx in range(2):
             reduct_cell = getattr(self, 'reduct_cell_' + str(idx))
-            reduct_cell.training = True
+            reduct_training = True
 
     def drop_prob_update(self, epoch, total_epoch):
         drop_prob = self.drop_prob * epoch / total_epoch
         for idx in range(18):
             norm_cell = getattr(self, 'norm_cell_' + str(idx))
-            norm_cell.drop_prob = drop_prob
+            norm_drop_prob = drop_prob
         for idx in range(2):
             reduct_cell = getattr(self, 'reduct_cell_' + str(idx))
-            reduct_cell.drop_prob = drop_prob
+            reduct_drop_prob = drop_prob

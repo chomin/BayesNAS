@@ -1,7 +1,7 @@
 # put normal and reduction cell here
 import torch
 from torch import nn
-from ops import *
+from CNN import ops
 
 
 class NormalCell(nn.Module):

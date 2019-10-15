@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 # from model import NetworkCIFAR as Network
-from CNN import net_cifar as network
+from CNN.net_cifar import NetWork as Network
 from CNN import utils
 from tensorboardX import SummaryWriter
 
@@ -34,7 +34,7 @@ parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=600, help='num of training epochs')
 parser.add_argument('--init_channels', type=int, default=36, help='num of init channels')
 parser.add_argument('--layers', type=int, default=20, help='total number of layers')
-parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
+parser.add_argument('--model_path', type=str, default='./lambda_0.005_0.005/best_saved_model.pt', help='path to save the model')
 parser.add_argument('--auxiliary', action='store_true', default=False, help='use auxiliary tower')
 parser.add_argument('--auxiliary_weight', type=float, default=0.4, help='weight for auxiliary loss')
 parser.add_argument('--cutout', action='store_true', default=False, help='use cutout')
@@ -58,6 +58,7 @@ fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 
 CIFAR_CLASSES = 10
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 writer = SummaryWriter(log_dir=args.save)
 
@@ -65,10 +66,11 @@ writer = SummaryWriter(log_dir=args.save)
 def main():
     if not torch.cuda.is_available():
         logging.info('no gpu device available')
-        sys.exit(1)
+        # sys.exit(1)
+    else:
+        torch.cuda.set_device(args.gpu)
 
     np.random.seed(args.seed)
-    torch.cuda.set_device(args.gpu)
     cudnn.benchmark = True
     torch.manual_seed(args.seed)
     cudnn.enabled = True
@@ -76,14 +78,15 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
-    genotype = eval("genotypes.%s" % args.arch)
-    model = network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
-    model = model.cuda()
+    # genotype = eval("genotypes.%s" % args.arch)
+    # model = Network(args.init_channels, CIFAR_CLASSES, args.layers, args.auxiliary, genotype)
+    model = Network(CIFAR_CLASSES)
+    model = model.to(device)
 
     logging.info("param size = %fMB", utils.count_parameters_in_MB(model))
 
     criterion = nn.CrossEntropyLoss()
-    criterion = criterion.cuda()
+    criterion = criterion.to(device)
     optimizer = torch.optim.SGD(
         model.parameters(),
         args.learning_rate,
@@ -95,16 +98,17 @@ def main():
     train_data = dset.CIFAR10(root=args.data, train=True, download=True, transform=train_transform)
     valid_data = dset.CIFAR10(root=args.data, train=False, download=True, transform=valid_transform)
 
-    train_queue = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,  pin_memory=True, num_workers=2)
+    pin_memory = True if torch.cuda.is_available() else False
+    train_queue = DataLoader(train_data, batch_size=args.batch_size, shuffle=True,  pin_memory=pin_memory, num_workers=2)
 
-    valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=True, num_workers=2)
+    valid_queue = DataLoader(valid_data, batch_size=args.batch_size, shuffle=False, pin_memory=pin_memory, num_workers=2)
 
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, float(args.epochs))
 
     results = dict()
 
     for epoch in range(args.epochs):
-        scheduler.step()
+        # scheduler.step()  # 1.1以上ではoptimizer.step()の後に行う
         logging.info('epoch %d lr %e', epoch, scheduler.get_lr()[0])
         model.drop_path_prob = args.drop_path_prob * epoch / args.epochs
 
@@ -119,6 +123,7 @@ def main():
         results["valid_acc"] = valid_acc
 
         utils.save(model, os.path.join(args.save, 'weights.pt'))
+        scheduler.step()
 
     with mlflow.start_run() as run:
         # Log args into mlflow
@@ -143,9 +148,10 @@ def train(train_queue, model, criterion, optimizer):
     model.train()
 
     for step, (input, target) in enumerate(train_queue):
-        input = Variable(input).cuda()
+        # input = Variable(input).cuda()
+        input = input.to(device)
         # target = Variable(target).cuda(async=True)
-        target = Variable(target).cuda(async=True)
+        target = target.to(device)
 
         optimizer.zero_grad()
         logits, logits_aux = model(input)
@@ -178,24 +184,27 @@ def infer(valid_queue, model, criterion):
     top5 = utils.AvgrageMeter()
     model.eval()
 
-    for step, (input, target) in enumerate(valid_queue):
-        input = Variable(input, volatile=True).cuda()
-        target = Variable(target, volatile=True).cuda(async=True)
+    with torch.no_grad():
+        for step, (input, target) in enumerate(valid_queue):
+            # input = Variable(input, volatile=True).cuda()
+            # target = Variable(target, volatile=True).cuda(async=True)
+            input = input.to(device)
+            target = target.to(device)
 
-        logits, _ = model(input)
-        loss = criterion(logits, target)
+            logits, _ = model(input)
+            loss = criterion(logits, target)
 
-        prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
-        n = input.size(0)
-        loss_data = loss.data[0] if loss.dim() != 0 else loss.item()
-        prec1_data = prec1.data[0] if prec1.dim() != 0 else prec1.item()
-        prec5_data = prec5.data[0] if prec5.dim() != 0 else prec5.item()
-        objs.update(loss_data, n)
-        top1.update(prec1_data, n)
-        top5.update(prec5_data, n)
+            prec1, prec5 = utils.accuracy(logits, target, topk=(1, 5))
+            n = input.size(0)
+            loss_data = loss.data[0] if loss.dim() != 0 else loss.item()
+            prec1_data = prec1.data[0] if prec1.dim() != 0 else prec1.item()
+            prec5_data = prec5.data[0] if prec5.dim() != 0 else prec5.item()
+            objs.update(loss_data, n)
+            top1.update(prec1_data, n)
+            top5.update(prec5_data, n)
 
-        if step % args.report_freq == 0:
-            logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
+            if step % args.report_freq == 0:
+                logging.info('valid %03d %e %f %f', step, objs.avg, top1.avg, top5.avg)
 
     return top1.avg, objs.avg
 
