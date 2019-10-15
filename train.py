@@ -68,7 +68,8 @@ def main():
         logging.info('no gpu device available')
         # sys.exit(1)
     else:
-        torch.cuda.set_device(args.gpu)
+        # torch.cuda.set_device(args.gpu)
+        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
 
     np.random.seed(args.seed)
     cudnn.benchmark = True
